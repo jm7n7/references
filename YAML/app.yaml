@@ -1,0 +1,109 @@
+# App Engine Flexible Environment Configuration
+# ====================================================================
+# This file configures your application for Google App Engine Flexible
+# Use this if deploying to App Engine instead of Cloud Run
+# ====================================================================
+
+runtime: custom
+env: flex
+
+# Service name (optional - defaults to 'default')
+# service: default
+
+# Instance class and scaling
+automatic_scaling:
+  min_num_instances: 1
+  max_num_instances: 10
+  cool_down_period_sec: 180s
+  cpu_utilization:
+    target_utilization: 0.6
+
+# Manual scaling (alternative to automatic_scaling)
+# manual_scaling:
+#   instances: 2
+
+# Resources
+resources:
+  cpu: 1
+  memory_gb: 2
+  disk_size_gb: 10
+
+# Health checks
+health_check:
+  enable_health_check: true
+  check_interval_sec: 5
+  timeout_sec: 4
+  unhealthy_threshold: 2
+  healthy_threshold: 2
+  restart_threshold: 3
+
+# Readiness check
+readiness_check:
+  path: "/readiness_check"
+  check_interval_sec: 5
+  timeout_sec: 4
+  failure_threshold: 2
+  success_threshold: 2
+  app_start_timeout_sec: 300
+
+# Liveness check
+liveness_check:
+  path: "/liveness_check"
+  check_interval_sec: 30
+  timeout_sec: 4
+  failure_threshold: 4
+  success_threshold: 2
+  initial_delay_sec: 300
+
+# Environment variables
+env_variables:
+  PYTHONUNBUFFERED: '1'
+  ENVIRONMENT: 'production'
+  # Add your custom environment variables here
+  # DATABASE_URL: 'your-database-url'
+  # API_KEY: 'your-api-key'
+
+# Beta settings (for newer features)
+beta_settings:
+  cloud_sql_instances: 'PROJECT_ID:REGION:INSTANCE_NAME'
+  # Uncomment and configure if using Cloud SQL
+  # cloud_sql_instances: 'my-project:us-central1:my-instance'
+
+# Network configuration
+network:
+  name: default
+  # forwarded_ports:
+  #   - "8080"
+
+# VM settings
+vm: true
+
+# ====================================================================
+# Deployment Commands:
+# ====================================================================
+#
+# 1. Deploy to App Engine:
+#    gcloud app deploy YAML/app.yaml
+#
+# 2. Deploy with specific version:
+#    gcloud app deploy YAML/app.yaml --version=v1
+#
+# 3. Deploy and promote to default:
+#    gcloud app deploy YAML/app.yaml --promote
+#
+# 4. Deploy without promoting:
+#    gcloud app deploy YAML/app.yaml --no-promote
+#
+# 5. View logs:
+#    gcloud app logs tail -s default
+#
+# ====================================================================
+# Notes:
+# ====================================================================
+# - Requires Dockerfile in the project root or specified directory
+# - Port 8080 is the standard port for App Engine Flexible
+# - Health check endpoints should return 200 OK
+# - Environment variables can be set here or via Secret Manager
+# - For secrets, use Secret Manager and reference in env_variables
+# ====================================================================
+

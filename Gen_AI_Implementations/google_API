@@ -1,0 +1,373 @@
+"""
+Google Gemini API
+==============================
+
+Installation:
+    Old install - pip install google-generativeai
+    New install - pip install google-genai
+
+Authentication:
+    Set your API key as an environment variable:
+    export GOOGLE_API_KEY="your-api-key-here"
+    
+    Or pass it directly when initializing the client.
+
+User Guide:
+    Google has updated their API implementation to use the new Google GenAI SDK.
+    https://ai.google.dev/gemini-api/docs/models
+    https://ai.google.dev/gemini-api/docs/migrate
+"""
+
+import os
+# old import: import google.generativeai as genai
+from google import genai
+from google.genai import types
+from google.genai.types import FunctionDeclaration
+from dotenv import load_dotenv
+
+# ============================================================================
+# Configuration
+# ============================================================================
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Set API key from environment variable
+API_KEY = os.getenv("GOOGLE_API_KEY")
+
+# Create a single client object (centralized API access)
+client = genai.Client(api_key=API_KEY)
+
+# ============================================================================
+# Basic Usage - Text Generation
+# ============================================================================
+
+def basic_text_generation(prompt: str, model_name: str = "gemini-2.0-flash") -> str:
+    """
+    Basic text generation using Gemini.
+    
+    Args:
+        prompt: The input prompt/question
+        model_name: The model to use (default: "gemini-2.0-flash")
+    
+    Returns:
+        Generated text response
+    """
+    response = client.models.generate_content(
+        model=model_name,
+        contents=prompt
+    )
+    return response.text
+
+
+# ============================================================================
+# Chat Conversation
+# ============================================================================
+def chat_conversation(chat_prompt_1, chat_prompt_2, chat_prompt_3):
+    """
+    Example of a multi-turn conversation with Gemini.
+    """
+    # Create a new chat session
+    chat = client.chats.create(
+        model="gemini-2.0-flash"
+    )
+    
+    # First message
+    response = chat.send_message(
+        message=chat_prompt_1
+    )
+    print(f"Assistant: {response.text}")
+    
+    # Follow-up message (context is maintained)
+    response = chat.send_message(
+        message=chat_prompt_2
+    )
+    print(f"Assistant: {response.text}")
+
+    # Follow-up message (context is maintained)
+    response = chat.send_message(
+        message=chat_prompt_3
+    )
+    print(f"Assistant: {response.text}")
+    
+    # Access conversation history
+    history = chat.get_history()
+    for message in history:
+        print(f"{message.role}: {message.parts[0].text}")
+
+
+# ============================================================================
+# Streaming Response
+# ============================================================================
+
+def streaming_generation(prompt: str):
+    """
+    Stream responses token by token for better UX.
+    """
+    response = client.models.generate_content(
+        model="gemini-2.0-flash",
+        contents=prompt,
+        config=types.GenerateContentConfig(stream=True)
+    )
+    
+    for chunk in response:
+        print(chunk.text, end="", flush=True)
+    print()  # New line after streaming
+
+
+# ============================================================================
+# Advanced Configuration
+# ============================================================================
+
+def advanced_generation(prompt: str):
+    """
+    Generation with custom parameters (temperature, top_p, etc.).
+    temperature: Controls randomness. Higher values (e.g., 0.8) make output more creative and diverse; lower values (e.g., 0.2) make it more focused and deterministic.
+    top_p: Nucleus sampling. With top_p=1.0, sampling considers all possible tokens (equal to pure temperature sampling). Lowering top_p (e.g., 0.8) only considers the smallest set of tokens whose cumulative probability exceeds top_p, encouraging more likely outputs.
+    top_k: Limits sampling to the top_k most likely tokens at each step. For example, top_k=40 means only the 40 highest-probability next words are considered. Setting top_k lower makes results more predictable, higher allows for more variety.
+    Tuning tips:
+        - Raise temperature for more creativity, lower for precision.
+        - top_p and top_k can be used together, but usually one is sufficient.
+        - You might use temperature=0.7, top_p=0.8, top_k=40 for balanced creativity and relevance.
+    """
+    response = client.models.generate_content(
+        model="gemini-2.0-flash",
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            temperature=0.7,
+            top_p=0.8,
+            top_k=40,
+            max_output_tokens=2048,
+        )
+    )
+    return response.text
+
+
+# ============================================================================
+# Safety Settings
+# ============================================================================
+
+def safe_generation(prompt: str):
+    """
+    Generation with custom safety settings.
+    """
+    safety_settings = [
+        {
+            "category": "HARM_CATEGORY_HARASSMENT",
+            "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+        },
+        {
+            "category": "HARM_CATEGORY_HATE_SPEECH",
+            "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+        },
+        {
+            "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+            "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+        },
+        {
+            "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+            "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+        },
+    ]
+    
+    response = client.models.generate_content(
+        model="gemini-2.0-flash",
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            safety_settings=safety_settings
+        )
+    )
+    return response.text
+
+
+# ============================================================================
+# Multimodal Input (Text + Images)
+# ============================================================================
+
+def multimodal_generation(text_prompt: str, image_path: str):
+    """
+    Generate content from both text and image inputs.
+    
+    Args:
+        text_prompt: Text description/question
+        image_path: Path to image file
+    """
+    # This is a new import for image processing
+    # pip install pillow
+    import PIL.Image
+    
+    # Load image
+    img = PIL.Image.open(image_path)
+    
+    # Generate content with text and image
+    response = client.models.generate_content(
+        model="gemini-2.0-flash-exp",
+        contents=[text_prompt, img]
+    )
+    return response.text
+
+
+# ============================================================================
+# Error Handling
+# ============================================================================
+
+def safe_generate_content(prompt: str):
+    """
+    Generate content with proper error handling.
+    """
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=prompt
+        )
+        
+        # Check if response was blocked
+        if hasattr(response, 'prompt_feedback') and response.prompt_feedback.block_reason:
+            print(f"Response blocked: {response.prompt_feedback.block_reason}")
+            return None
+        
+        return response.text
+    
+    except Exception as e:
+        print(f"Error generating content: {e}")
+        return None
+
+# ============================================================================
+# Asynchronous Calls
+# ============================================================================
+
+async def asynchronous_call(prompt: str):
+    """
+    Make an asynchronous call to the API.
+    """
+    response = await client.aio.models.generate_content(
+        model="gemini-2.0-flash",
+        contents=prompt
+    )
+    return response.text
+
+# ============================================================================
+# User defined tools
+# ============================================================================
+'''
+User can define functions to act as tools to be used by the AI Agent.
+These tools can be used to perform tasks that are not possible with the model alone.
+A user can ask the AI for something in natural language and the AI will use the tools to perform the task.
+
+This example shows the user asking the AI about a specific number, and if it is even or odd.
+The AI agent parses the query for the number, and uses the get_even_odd 'tool' to decide the response.
+'''
+def get_even_odd(number: int) -> str:
+    """determine if a number is even or odd.
+
+    Args:
+        number: required, The number to check
+    """
+    print(f'Called with: {number=}')
+    return f"The number {number} is even" if number % 2 == 0 else f"The number {number} is odd"
+
+# ============================================================================
+# Google Search tool
+# ============================================================================
+def web_search_generation(prompt: str, model_name: str = "gemini-2.0-flash") -> str:
+    response = client.models.generate_content(
+        model=model_name,
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            tools=[
+                types.Tool(
+                    google_search=types.GoogleSearch()
+                    )
+                ]
+            )
+        )
+    return response.text
+
+
+# ============================================================================
+# Structured Response | JSON
+# ============================================================================
+from pydantic import BaseModel # Uses pydantic for class structure
+class CountryInfo(BaseModel):
+    name: str
+    population: int
+    capital: str
+    continent: str
+    major_cities: list[str]
+    gdp: int
+    official_language: str
+    total_area_sq_mi: int
+
+def country_info(prompt: str, model_name: str = "gemini-2.0-flash"):
+    """
+    Get structured country info response (as JSON) using Gemini, using Pydantic model for schema,
+    and enabling the Google Search tool for augmentation.
+
+    Args:
+        prompt: The country's name or your query.
+        model_name: Gemini model name.
+
+    Returns:
+        An instance of CountryInfo parsed from the model's JSON response.
+    """
+    response = client.models.generate_content(
+        model=model_name,
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            tools=[
+                types.Tool(
+                    google_search=types.GoogleSearch()
+                )
+            ],
+            response_mime_type='application/json',
+            response_schema=CountryInfo
+        )
+    )
+    return response.parsed
+
+# ============================================================================
+# Example Usage
+# ============================================================================
+
+if __name__ == "__main__":
+    # Basic example
+    # prompt = "Create a haiku about the coding trope 'Hello World'"
+
+    # result = basic_text_generation(prompt)
+    # result = streaming_generation(prompt)
+    # result = advanced_generation(prompt)
+    # result = safe_generation(prompt)
+    # result = multimodal_generation(prompt, "image.jpg")
+    # result = safe_generate_content(prompt)
+    # print(result)
+
+    ''' Chat Conversation Example
+    chat_prompt_1 = "My name is Joseph, nice to meet you."
+    chat_prompt_2 = "I'm a data scientist, what do you do?"
+    chat_prompt_3 = "What was my name again?"
+    result = chat_conversation(chat_prompt_1, chat_prompt_2, chat_prompt_3)
+    print(result)
+    '''
+
+    ''' Example showing function-calling/tools with Gemini (Working pattern)
+    response = client.models.generate_content(
+        model='gemini-2.0-flash',
+        contents="I would like to look at the number 10. I would not like to look at the number 7.",
+        config=types.GenerateContentConfig(
+            tools=[get_even_odd],
+            automatic_function_calling={'disable': False},  # safe to leave enabled
+        ),
+    )
+    print(response.text)
+    '''
+
+    ''' Example of googles built in web search tool
+    result = web_search_generation(prompt='I am looking for the URL to the youtube video of the classic Rick Roll song')
+    print(result)
+    '''
+
+    ''' Example of Pydantic Structuring
+    result = country_info("United States")
+    print(result) # print entire result
+    print(result.gdp) # print only the key from the dictionary class object since it is structured
+    '''
